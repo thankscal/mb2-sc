@@ -92,7 +92,7 @@
         <div class="color-settings-section" id="colorSettingsSection">
             <div class="d-flex justify-content-between"><h5><i class="bi bi-palette"></i> 班型顏色設定</h5><button class="btn btn-sm btn-outline-secondary" id="toggleColorSettingsBtn"><i class="bi bi-chevron-up"></i> 隱藏</button></div>
             <div id="colorSettingsContainer"></div>
-            <div class="mt-2"><button class="btn btn-primary btn-sm" id="saveColorsBtn">儲存</button><button class="btn btn-secondary btn-sm" id="resetColorsBtn">重設預設</button></div>
+            <div class="mt-2"><button class="btn btn-primary btn-sm" id="applyColorsBtn">套用顏色</button><button class="btn btn-secondary btn-sm" id="resetColorsBtn">重設預設</button></div>
         </div>
         <div class="week-start-selector mt-2" id="weekStartSelector" style="display: none;"><label>每週第一天</label><select class="form-select w-50" id="weekStartDaySelect"><option value="0">週日</option><option value="1">週一</option></select></div>
         <div class="person-selector">
@@ -106,7 +106,6 @@
             <div class="d-flex justify-content-between mt-3 flex-wrap gap-2">
                 <button class="btn btn-outline-secondary" id="reuploadBtn"><i class="bi bi-arrow-clockwise"></i> 重新上載</button>
                 <button class="btn btn-outline-primary" id="toggleColorSettingsBtn2"><i class="bi bi-palette"></i> 顏色設定</button>
-                <button class="btn btn-outline-danger" id="clearStorageBtn"><i class="bi bi-trash"></i> 清除資料</button>
             </div>
             <div class="wallpaper-note mt-2"><i class="bi bi-info-circle"></i> 點擊日期可修改班型與備註。</div>
         </div>
@@ -171,16 +170,6 @@
     let isSummaryCollapsed = true;
     let globalSpecialShifts = new Set();
     
-    const STORAGE_KEYS = {
-        SCHEDULE_DATA: 'scheduleData_v5',
-        ALL_DATES: 'allDates_v5',
-        FILE_NAME: 'fileName_v5',
-        TIMESTAMP: 'ts_v5',
-        SHIFT_COLORS: 'shiftColors_v5',
-        WEEK_START_DAY: 'weekStartDay_v5',
-        SPECIAL_SHIFTS: 'specialShifts_v5'
-    };
-
     const CATEGORY_NAME = '廠修二組';
 
     // ---------- 班次時間工具 ----------
@@ -228,10 +217,7 @@
         globalSpecialShifts = found;
         for (let s of globalSpecialShifts) if (!shiftColors[s]) shiftColors[s] = { ...SPECIAL_DEFAULT_COLOR };
         for (let key in shiftColors) if (!shiftDescriptions[key] && !globalSpecialShifts.has(key)) delete shiftColors[key];
-        localStorage.setItem(STORAGE_KEYS.SPECIAL_SHIFTS, JSON.stringify([...globalSpecialShifts]));
-        saveColorSettingsToLocal();
     }
-    function saveColorSettingsToLocal() { localStorage.setItem(STORAGE_KEYS.SHIFT_COLORS, JSON.stringify(shiftColors)); }
 
     // ---------- 顏色設定面板 ----------
     function createColorSettingsForPerson(specialShiftsOfCurrentPerson) {
@@ -258,7 +244,6 @@
                 if(!shiftColors[shiftCode]) shiftColors[shiftCode]={r:128,g:128,b:128};
                 shiftColors[shiftCode][type]=val;
                 document.getElementById(`preview_${shiftCode}`).style.backgroundColor=`rgb(${shiftColors[shiftCode].r},${shiftColors[shiftCode].g},${shiftColors[shiftCode].b})`;
-                saveColorSettingsToLocal();
                 updateCalendarOnly();
             }));
         }
@@ -278,7 +263,7 @@
         }
     }
 
-    // ★ 只更新日曆與統計，不重建顏色面板（避免輸入框失去焦點）
+    // 只更新日曆與統計，不重建顏色面板（避免輸入框失去焦點）
     function updateCalendarOnly() {
         let selected = document.getElementById('personSelect').value;
         if(!selected) return;
@@ -445,10 +430,7 @@
                 if(!shiftDescriptions[shift] && !globalSpecialShifts.has(shift)) {
                     globalSpecialShifts.add(shift);
                     if(!shiftColors[shift]) shiftColors[shift] = { ...SPECIAL_DEFAULT_COLOR };
-                    localStorage.setItem(STORAGE_KEYS.SPECIAL_SHIFTS, JSON.stringify([...globalSpecialShifts]));
-                    saveColorSettingsToLocal();
                 }
-                saveToLocalStorage(scheduleData, allDates, currentFileName);
                 showSelectedPersonSchedule();
                 bsModal.hide();
                 setTimeout(()=>modalElem.remove(),300);
@@ -471,7 +453,6 @@
             } else {
                 personData.shifts[dateNum] = { shift: '', originalShift: '', isHoliday: false, note: note };
             }
-            saveToLocalStorage(scheduleData, allDates, currentFileName);
             showSelectedPersonSchedule();
             bsModal.hide();
             setTimeout(()=>modalElem.remove(),300);
@@ -623,8 +604,6 @@
         if(!name){alert('請選擇人員');return;}
         let person=scheduleData.find(p=>p.name===name);
         if(!person)return;
-        let savedColors=localStorage.getItem(STORAGE_KEYS.SHIFT_COLORS);
-        if(savedColors) try{Object.assign(shiftColors,JSON.parse(savedColors));}catch(e){}
         for(let s of globalSpecialShifts) if(!shiftColors[s]) shiftColors[s]={...SPECIAL_DEFAULT_COLOR};
         const noti=document.getElementById('downloadNotification'); noti.classList.add('show');
         const daysInMonth=new Date(scheduleYear,scheduleMonth,0).getDate();
@@ -793,7 +772,6 @@
         }
         
         refreshSpecialShiftsFromData();
-        saveToLocalStorage(scheduleData, allDates, fileName);
         updatePersonSelect();
         updateWeekStartSelector();
         hideLoading();
@@ -821,35 +799,6 @@
         return true;
     }
 
-    // ---------- 儲存 / 載入 ----------
-    function saveToLocalStorage(sdata,dates,fname){
-        localStorage.setItem(STORAGE_KEYS.SCHEDULE_DATA,JSON.stringify(sdata));
-        localStorage.setItem(STORAGE_KEYS.ALL_DATES,JSON.stringify(dates));
-        localStorage.setItem(STORAGE_KEYS.FILE_NAME,fname);
-        localStorage.setItem(STORAGE_KEYS.TIMESTAMP,Date.now().toString());
-        saveColorSettingsToLocal();
-        localStorage.setItem(STORAGE_KEYS.WEEK_START_DAY,weekStartDay);
-        localStorage.setItem(STORAGE_KEYS.SPECIAL_SHIFTS,JSON.stringify([...globalSpecialShifts]));
-    }
-    function loadFromLocalStorage(){
-        let sData=localStorage.getItem(STORAGE_KEYS.SCHEDULE_DATA);
-        if(!sData) return null;
-        try{
-            scheduleData=JSON.parse(sData);
-            allDates=JSON.parse(localStorage.getItem(STORAGE_KEYS.ALL_DATES) || '[]');
-            currentFileName=localStorage.getItem(STORAGE_KEYS.FILE_NAME)||'';
-            let cols=localStorage.getItem(STORAGE_KEYS.SHIFT_COLORS);
-            if(cols) shiftColors=JSON.parse(cols);
-            let wd=localStorage.getItem(STORAGE_KEYS.WEEK_START_DAY);
-            if(wd) weekStartDay=parseInt(wd);
-            let sp=localStorage.getItem(STORAGE_KEYS.SPECIAL_SHIFTS);
-            if(sp) globalSpecialShifts=new Set(JSON.parse(sp));
-            for(let s of globalSpecialShifts) if(!shiftColors[s]) shiftColors[s]={...SPECIAL_DEFAULT_COLOR};
-            // 從第一個有效日期推回年月
-            return true;
-        }catch(e){return null;}
-    }
-
     function updatePersonSelect() {
         const sel = document.getElementById('personSelect');
         sel.innerHTML = '<option value="">請選擇人員</option>';
@@ -868,13 +817,8 @@
         select.value=weekStartDay;
         select.onchange=()=>{
             weekStartDay=parseInt(select.value);
-            localStorage.setItem(STORAGE_KEYS.WEEK_START_DAY,weekStartDay);
             showSelectedPersonSchedule();
         };
-    }
-    function clearLocalStorage(){
-        Object.values(STORAGE_KEYS).forEach(k=>localStorage.removeItem(k));
-        location.reload();
     }
     function showLoading(){ document.getElementById('loadingSpinner').style.display='block'; document.getElementById('resultSection').style.display='none'; }
     function hideLoading(){ document.getElementById('loadingSpinner').style.display='none'; document.getElementById('resultSection').style.display='block'; }
@@ -919,32 +863,20 @@
         document.getElementById('toggleColorSettingsBtn').onclick=togglePanel; 
         document.getElementById('toggleColorSettingsBtn2').onclick=togglePanel;
         
-        if(loadFromLocalStorage()){ 
-            updatePersonSelect(); 
-            updateWeekStartSelector(); 
-            document.getElementById('resultSection').style.display='block'; 
-            let psel = document.getElementById('personSelect');
-            if (psel.options.length > 1) {
-                psel.selectedIndex = 1;
-                showSelectedPersonSchedule();
-            }
-        } else { 
-            weekStartDay=0; 
-            localStorage.setItem(STORAGE_KEYS.WEEK_START_DAY,weekStartDay); 
-            document.getElementById('weekStartDaySelect').value=0; 
-        }
+        weekStartDay=0;
+        document.getElementById('weekStartDaySelect').value=0;
+        
         document.getElementById('fileInput').addEventListener('change',(e)=>{ if(e.target.files&&e.target.files[0]) handleFile(e.target.files[0]); e.target.value=''; });
         document.getElementById('selectFileBtn').onclick=()=>document.getElementById('fileInput').click();
         document.getElementById('uploadArea').addEventListener('click',(e)=>{ if(e.target===document.getElementById('uploadArea')||e.target.closest('.upload-instruction')) document.getElementById('fileInput').click(); });
         document.getElementById('reuploadBtn').onclick=()=>document.getElementById('fileInput').click();
-        document.getElementById('clearStorageBtn').onclick=()=>{ if(confirm('清除所有本地資料？')) clearLocalStorage(); };
         document.getElementById('copyPersonScheduleBtn').onclick=copyPersonScheduleToClipboard;
         document.getElementById('copyPersonScheduleBtn2').onclick=copyPersonScheduleToClipboard;
         document.getElementById('downloadImageBtn').onclick=downloadScheduleAsImage;
         document.getElementById('wallpaperBtn').onclick=generateMobileWallpaper;
         document.getElementById('summaryToggleBtn').onclick=()=>{ isSummaryCollapsed=!isSummaryCollapsed; let cont=document.getElementById('shiftSummaryContent'); if(isSummaryCollapsed) cont.classList.add('collapsed'); else cont.classList.remove('collapsed'); };
-        document.getElementById('saveColorsBtn').onclick=()=>{ saveColorSettingsToLocal(); alert('顏色已儲存'); };
-        document.getElementById('resetColorsBtn').onclick=()=>{ if(confirm('重設所有班型顏色為預設值？')){ shiftColors=JSON.parse(JSON.stringify(defaultShiftColors)); for(let s of globalSpecialShifts) shiftColors[s]={...SPECIAL_DEFAULT_COLOR}; saveColorSettingsToLocal(); showSelectedPersonSchedule();} };
+        document.getElementById('applyColorsBtn').onclick=()=>{ alert('顏色已套用（本次瀏覽有效，重新整理後需重新上傳）'); };
+        document.getElementById('resetColorsBtn').onclick=()=>{ if(confirm('重設所有班型顏色為預設值？')){ shiftColors=JSON.parse(JSON.stringify(defaultShiftColors)); for(let s of globalSpecialShifts) shiftColors[s]={...SPECIAL_DEFAULT_COLOR}; showSelectedPersonSchedule();} };
         document.getElementById('personSelect').onchange=()=>showSelectedPersonSchedule();
     });
 </script>
